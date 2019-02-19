@@ -23,24 +23,29 @@ class Filefinder:
       for f in sonfiles:
         self.filelist.append( (curdir, f) )
 
-    self.found = self.filelist
+    self.found = []
 
   def searchFile(self, input):
-    names = input.split('/')
+    names = [os.path.join(*input.upper().split('/'))]
     lastdir=''
-    self.found = []
 
     for (d, f) in self.filelist:
       if Utility.filematch((d, f), names):
         if d != lastdir:
           lastdir = d
-
-        self.found(os.path.join(d, f))
+      
+        self.found.append(os.path.join(d, f))
 
     return
 
+  def resetFound(self):
+    self.found = []
+
   def getFound(self):
     return self.found
+
+  def getFirstFound(self):
+    return self.found[0]
 
   def getCount(self):
     return len(self.found)
@@ -54,11 +59,90 @@ class FilefinderSingleton:
       FilefinderSingleton.filefinder = Filefinder()
     return FilefinderSingleton.filefinder
 
-class GoToModule(sublime_plugin.TextCommand):
+class ListModuleCommand(sublime_plugin.TextCommand):
   def run(self, edit):
-    window = self.view.window()
-    working_directory = os.path.join(window.extract_variables()['folder'], 'app', 'assets', 'javascripts')
+    self.window = self.view.window()
+
+    # Init file indexes
+    working_directory = os.path.join(self.window.extract_variables()['folder'])
     FilefinderSingleton.getInstance().initFileList(working_directory)
+    
+    # Module paths
+    module_paths = self.module_paths()
+
+    # Search for file paths
+    for module_path in module_paths:
+      FilefinderSingleton.getInstance().searchFile(module_path)
+
+    # Display quick panel
+    self.display_quick_panel()
+
+  def module_paths(self):
+    result = self.view.find_all(self.es6_module_regex())
+
+    if len(result) == 0:
+      return
+
+    module_paths = []
+
+    for region in result:
+      matching_line = self.view.substr(region)
+      module_path = re.search(self.es6_module_regex(), matching_line).group(1)
+      module_paths.append(module_path[1:])
+
+    return module_paths
+
+  def display_quick_panel(self):
+    items = []
+    for file_path in self.file_paths():
+      items.append([
+        os.path.basename(file_path),
+        file_path
+      ]) 
+
+    self.window.show_quick_panel(
+      items,
+      self.open_file
+    )
+
+  def open_file(self, selected):
+    if selected == -1:
+      return
+
+    file_path = self.file_paths()[selected]
+
+    if file_path is None or len(file_path) == 0:
+      return
+
+    self.window.open_file(file_path)
+
+  def has_found_files(self):
+    return FilefinderSingleton.getInstance().getCount() > 0
+
+  def file_paths(self):
+    return FilefinderSingleton.getInstance().getFound()
+
+  def es6_module_regex(self):
+    return r"\bimport\s+(?:.+\s+from\s+)?[\']([^\']+)[\']"
+
+class GoToModuleCommand(sublime_plugin.TextCommand):
+  def run(self, edit):
+    self.window = self.view.window()
+
+    # Init file indexes
+    working_directory = os.path.join(self.window.extract_variables()['folder'])
+    FilefinderSingleton.getInstance().initFileList(working_directory)
+
+    # Search for files
+    text = self.get_text_under_cursor()
+    module_path = self.find_module_path(text)
+    FilefinderSingleton.getInstance().searchFile(module_path)
+    
+    if self.has_found_files():
+      self.display_quick_panel()
+
+  def get_text_under_cursor(self):
+    candidates = []
 
     for region in self.view.sel():
       # get selected text
@@ -71,43 +155,50 @@ class GoToModule(sublime_plugin.TextCommand):
         if not word.empty():
           text_on_cursor = self.view.substr(word)
 
-      candidates = [text_on_cursor]
+      candidates.append(text_on_cursor)
 
-      # get module file path
-      module_path = self.find_module_path(candidates)
-      FilefinderSingleton.getInstance().searchFile(module_path)
-      print(FilefinderSingleton.getInstance().getCount())
-      return
-      self.try_open(module_path)
+    return candidates[0]
 
-  def find_module_path(self, candidates):
-    for text in candidates:
-      if text is None or len(text) == 0:
-        continue
-
-      module_regex = self.regex_from_text(text)
-      result = self.view.find_all(module_regex)
-
-      if len(result) > 0:
-        matching_line = self.view.substr(result[0])
-        return re.search(module_regex, matching_line).group(1)[1:]
-
-  def try_open(self, module_path):
-    window = self.view.window()
-
-    if module_path is None or len(module_path) == 0:
+  def find_module_path(self, text):
+    if text is None or len(text) == 0:
       return
 
-    window.show_quick_panel([module_path], window.open_file)
+    module_regex = self.regex_from_text(text)
+    result = self.view.find_all(module_regex)
 
-    return
-    self.potential_files = self.get_filename(module_path)
-    if len(self.potential_files) == 0:
+    if len(result) > 0:
+      matching_line = self.view.substr(result[0])
+      return re.search(module_regex, matching_line).group(1)[1:]
+
+  def display_quick_panel(self):
+    items = []
+    for file_path in self.file_paths():
+      items.append([
+        os.path.basename(file_path),
+        file_path
+      ]) 
+
+    self.window.show_quick_panel(
+      items,
+      self.open_file
+    )
+
+  def open_file(self, selected):
+    if selected == -1:
       return
 
-    print(self.potential_files)
+    file_path = self.file_paths()[selected]
+
+    if file_path is None or len(file_path) == 0:
+      return
+
+    self.window.open_file(file_path)
+
+  def has_found_files(self):
+    return FilefinderSingleton.getInstance().getCount() > 0
+
+  def file_paths(self):
+    return FilefinderSingleton.getInstance().getFound()
 
   def regex_from_text(self, text):
-    return r"import " + text + " from '(.*)'"
-
-
+    return r"\bimport\s+(?:.+\s+from\s+)?[\']([^\']+)[\']"
