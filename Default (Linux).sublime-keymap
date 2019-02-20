@@ -1,0 +1,5 @@
+[
+    { "keys": ["ctrl+m"], "command": "es_module_finder_list" },
+
+    { "keys": ["ctrl+alt+m"], "command": "es_module_finder_open" }
+]

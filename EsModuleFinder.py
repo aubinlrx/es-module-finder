@@ -2,6 +2,16 @@ import sublime, sublime_plugin
 import os, string
 import re
 
+_index_folder_tag =".es_module_finder"
+
+# Es module finder settings
+_es_module_finder_settings = "EsModuleFinder.sublime-settings"
+_settings = None
+
+def plugin_loaded():
+  global _settings
+  _settings = sublime.load_settings(_es_module_finder_settings)
+
 class Utility:
   @staticmethod
   def filematch(filenetry, names):
@@ -33,7 +43,7 @@ class Filefinder:
       if Utility.filematch((d, f), names):
         if d != lastdir:
           lastdir = d
-      
+
         self.found.append(os.path.join(d, f))
 
     return
@@ -59,14 +69,16 @@ class FilefinderSingleton:
       FilefinderSingleton.filefinder = Filefinder()
     return FilefinderSingleton.filefinder
 
-class ListModuleCommand(sublime_plugin.TextCommand):
+##############################################################
+
+class EsModuleFinderListCommand(sublime_plugin.TextCommand):
   def run(self, edit):
     self.window = self.view.window()
 
     # Init file indexes
     working_directory = os.path.join(self.window.extract_variables()['folder'])
     FilefinderSingleton.getInstance().initFileList(working_directory)
-    
+
     # Module paths
     module_paths = self.module_paths()
 
@@ -98,7 +110,7 @@ class ListModuleCommand(sublime_plugin.TextCommand):
       items.append([
         os.path.basename(file_path),
         file_path
-      ]) 
+      ])
 
     self.window.show_quick_panel(
       items,
@@ -125,7 +137,7 @@ class ListModuleCommand(sublime_plugin.TextCommand):
   def es6_module_regex(self):
     return r"\bimport\s+(?:.+\s+from\s+)?[\']([^\']+)[\']"
 
-class GoToModuleCommand(sublime_plugin.TextCommand):
+class EsModuleFinderOpenCommand(sublime_plugin.TextCommand):
   def run(self, edit):
     self.window = self.view.window()
 
@@ -137,7 +149,7 @@ class GoToModuleCommand(sublime_plugin.TextCommand):
     text = self.get_text_under_cursor()
     module_path = self.find_module_path(text)
     FilefinderSingleton.getInstance().searchFile(module_path)
-    
+
     if self.has_found_files():
       self.display_quick_panel()
 
@@ -176,7 +188,7 @@ class GoToModuleCommand(sublime_plugin.TextCommand):
       items.append([
         os.path.basename(file_path),
         file_path
-      ]) 
+      ])
 
     self.window.show_quick_panel(
       items,

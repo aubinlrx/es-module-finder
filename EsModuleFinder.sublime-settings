@@ -1,0 +1,23 @@
+{
+  // Choose folder to skip while indexing
+  "skip_folders":
+  [
+    ".svn",
+    ".git",
+    ".hg",
+    "CVS",
+    "CMpub",
+    "linux30",
+    "linux50"
+  ],
+
+  // Choose extension that will be indexed
+  "file_extensions":
+  [
+    "js",
+    "ts",
+    "coffee",
+    "coffee.erb",
+    "vue"
+  ],
+}
